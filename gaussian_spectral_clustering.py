@@ -160,7 +160,8 @@ def compute_posterior_probability_and_assign(data_mat, class_ixs, class_mean, cl
         #         p_c[class_idx] = term1 * term2 * term3
 
         # SCIPY built-in: from scipy.stats import multivariate_normal
-        p_c[:, class_idx] = multivariate_normal.pdf(data_mat.transpose(), mean=m_c, cov=K_c)
+        # TODO: Transpose covariance? Don't give data_mat at all?
+        p_c[:, class_idx] = multivariate_normal.pdf(data_mat.transpose(), mean=m_c, cov=K_c.transpose())
 
         posterior_probabilities[:, class_idx] = class_priors[class_idx] * p_c[:, class_idx]
 
