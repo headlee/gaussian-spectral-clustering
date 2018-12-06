@@ -125,7 +125,8 @@ def compute_class_statistics(data_mat, class_ixs, num_classes):
     return class_mean, class_cov, class_priors
 
 
-def compute_posterior_probability_and_assign(data_mat, class_ixs, class_mean, class_cov, class_priors):
+def compute_posterior_probability_and_assign(data_mat, class_ixs, class_mean, class_cov, class_priors,
+                                             dead_class_threshold=0):
     """
     Implements the 'Compute Posterior Probability & Assign to Class' block from the Beaven paper
     :param data_mat: (num_features,num_samples) data matrix (PC bands 1-N, leading order PCs)
@@ -133,6 +134,9 @@ def compute_posterior_probability_and_assign(data_mat, class_ixs, class_mean, cl
     :param class_mean: (num_features, num_classes) numpy matrix containing prior class means
     :param class_cov: (num_features, num_features, num_classes) numpy matrix containing prior class covariance matrices
     :param class_priors: (num_classes,) array containing prior class probabilities
+    :param dead_class_threshold: Integer specifying the number of minimum members a class may have before it is
+                                 considered dead and adaptive class management takes over. Default = 0 = no adaptive
+                                 management occurs (may have issues with singular matrices with this default!)
     :return: updated_class_ixs: (num_samples,) array containing updated class indices
     """
 
@@ -187,21 +191,56 @@ def compute_posterior_probability_and_assign(data_mat, class_ixs, class_mean, cl
     # Get number of samples in each class
     class_counts = np.bincount(updated_class_ixs)
     print('class counts', class_counts)
-    # If any class is less than a certain threshold, consider it "dead"
-    # TODO: Implement
-    # Adaptive class management
-    # TODO: Implement
+
+    # If any class is less than a certain threshold, consider it "dead" and perform adaptive class management
+    dead_class_ixs = np.nonzero(class_counts[class_counts < dead_class_threshold])[0]
+    for dead_class in dead_class_ixs:
+        print('Dead class (idx {}), less members than threshold ({})'.format(dead_class, dead_class_threshold))
+        updated_class_ixs = adaptive_class_management(data_mat, updated_class_ixs, dead_class, num_classes)
 
     return updated_class_ixs
 
 
-def iterate_clustering(data_mat, class_ixs, num_classes, N=100):
+def adaptive_class_management(data_mat, class_ixs, dead_class_ix, num_classes):
+    """
+    Performs adaptive class management as described in the Beaven paper
+    :param data_mat: (num_features, num_samples) data matrix (PC bands 1-N, leading order PCs)
+    :param class_ixs: (num_samples,) array containing class membership indices
+    :param dead_class_ix: Index of the empty class that is to be removed
+    :param num_classes: Number of total possible cluster classes
+    :return: updated_class_ixs: (num_samples,) array containing class indices after adaptive class management
+    """
+    # Step 1 - Nominate a dominant class
+    class_vars = np.zeros(num_classes)
+    # Find the class with the most scatter (variance?) in the first principal component dimension
+    for class_idx in range(num_classes):
+        ixs = np.nonzero(class_ixs == class_idx)[0]
+        class_vars[class_idx] = np.var(data_mat[0, ixs])
+
+    dominant_class_ix = np.argmax(class_vars)
+    dominant_class_ixs = np.nonzero(class_ixs == dominant_class_ix)[0]
+
+    # Step 2 - Split dominant class into 2 subclasses
+    tmp = data_mat[0, dominant_class_ixs] - np.mean(data_mat[0, dominant_class_ixs])
+
+    # Data that has a first principal component value less than the class mean will be transferred to the dead class
+    neg_ixs = np.nonzero(tmp[tmp < 0])
+    class_ixs[neg_ixs] = dead_class_ix
+
+    # Step 3 - Continue iterating with the new class indices
+    return class_ixs
+
+
+def iterate_clustering(data_mat, class_ixs, num_classes, N=100, dead_class_threshold=0):
     """
     Iterates through the Compute Class Statistics and Compute Posterior Probability & Assign to Class blocks
     :param data_mat: (num_features, num_samples) data matrix (PC bands 1-N, leading order PCs)
     :param class_ixs: (num_samples,) array containing class membership indices
     :param num_classes: Number of classes to cluster into
     :param N: Number of iterations
+    :param dead_class_threshold: Integer specifying the number of minimum members a class may have before it is
+                                 considered dead and adaptive class management takes over. Default = 0 = no adaptive
+                                 management occurs (may have issues with singular matrices with this default!)
     :return: (num_samples,) Numpy array containing final class membership indices
     """
     updated_class_ixs = class_ixs
@@ -212,7 +251,8 @@ def iterate_clustering(data_mat, class_ixs, num_classes, N=100):
                                                                      class_ixs,
                                                                      class_mean,
                                                                      class_cov,
-                                                                     class_priors)
+                                                                     class_priors,
+                                                                     dead_class_threshold)
         print('Finished iteration #', iter_idx)
 
     return updated_class_ixs
