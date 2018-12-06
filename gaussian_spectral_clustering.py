@@ -78,6 +78,7 @@ def initial_class_assignment(data_mat, num_classes, method='rand', init_indices=
             ixs = np.nonzero(cluster_member_ix == class_idx)[0]
             class_mean[:, class_idx] = data_mat[:, ixs].mean(axis=1)
             class_cov[:, :, class_idx] = np.cov(data_mat[:, ixs])
+
     elif method == 'select' and np.array(init_indices).shape[0] == num_classes:
         # Option 2 - Selective sampling
         # Use the given indices to initialize the class means
@@ -118,7 +119,6 @@ def compute_class_statistics(data_mat, class_ixs, num_classes):
         class_mean[:, class_idx] = data_mat[:, ixs].mean(axis=1)
         class_cov[:, :, class_idx] = np.cov(data_mat[:, ixs])
 
-    # TODO: Is this correct? Or should the prior probabilities be set to the posterior probs from last iteration?
     class_priors = np.bincount(class_ixs)
     class_priors = class_priors / np.sum(class_priors)
 
@@ -142,52 +142,24 @@ def compute_posterior_probability_and_assign(data_mat, class_ixs, class_mean, cl
 
     K, num_samples = data_mat.shape
     num_classes = class_mean.shape[1]
-    # print('K, nc:', K, num_classes)
 
     posterior_probabilities = np.zeros([num_samples, num_classes])
-    # posterior_probabilities = np.zeros(num_classes)
     p_c = np.zeros([num_samples, num_classes])
-    # p_c = np.zeros(num_classes)
     for class_idx in range(num_classes):
-        #         # TODO: Create p_c calc function
-        #         # TODO: Is x_bar supposed to be all data or only class? I think all...
-        #         # ixs = np.nonzero(class_ixs == class_idx)[0]
-        #         # x_bar = data_mat[:, ixs]
-        #         x_bar = data_mat.copy()
         m_c = class_mean[:, class_idx]
         K_c = class_cov[:, :, class_idx]
-        #         term1 = ((2 * np.pi) ** (-1 * K / 2))
-        #         term2 = np.linalg.det(K_c) ** (-1 / 2)
-        #         # term3 = np.exp(-1/2 * (x_bar.transpose() - m_c).transpose().transpose() * np.linalg.inv(K_c) * (x_bar.transpose() - m_c).transpose())
-        #         term3 = np.exp(-1 / 2 * (x_bar.transpose() - m_c).transpose().transpose().dot(np.linalg.inv(K_c)).dot(
-        #             (x_bar.transpose() - m_c).transpose()))
-        #         p_c[class_idx] = term1 * term2 * term3
 
-        # SCIPY built-in: from scipy.stats import multivariate_normal
-        # TODO: Transpose covariance? Don't give data_mat at all?
+        # Scipy built-in multivariate_normal function, faster and less error prone that manual implementation
         p_c[:, class_idx] = multivariate_normal.pdf(data_mat.transpose(), mean=m_c, cov=K_c.transpose())
 
         posterior_probabilities[:, class_idx] = class_priors[class_idx] * p_c[:, class_idx]
 
-    denom = np.sum(posterior_probabilities, axis=1)
-    # print(denom.size)
-
-    # Divide by total value in denom
+    # Divide each class posterior probability by the sum of all
     posterior_probabilities = posterior_probabilities / np.sum(posterior_probabilities, axis=1, keepdims=True)
 
-    # print(posterior_probabilities)
+    # Stochastic assignment of classes
+    updated_class_ixs = random_choice_prob_index(posterior_probabilities).astype('int64')
 
-    # Randomly assign pixels to classes with the calculated posterior probabilities
-    # updated_class_ixs = np.zeros(num_samples)
-
-    # for sample_idx in range(num_samples):
-    #    updated_class_ixs[sample_idx] = np.random.choice(num_classes, size=1, p=posterior_probabilities[sample_idx, :])
-
-    updated_class_ixs = random_choice_prob_index(posterior_probabilities)
-
-    # updated_class_ixs = np.random.choice(num_classes, size=num_samples, p=posterior_probabilities)
-    # TODO: Check vs. original ixs?
-    updated_class_ixs = updated_class_ixs.astype('int64')
     # Get number of samples in each class
     class_counts = np.bincount(updated_class_ixs)
     print('class counts', class_counts)
