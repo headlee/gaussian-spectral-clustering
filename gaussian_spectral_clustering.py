@@ -36,7 +36,7 @@ def compute_multivariate_gaussian_statistics(data_mat, threshold=None):
     :param data_mat: (num_features, num_samples) data matrix (PC bands N+1-end, trailing order PCs)
     :param threshold: Optional threshold value for RX algorithm for classifying outliers. Default is to classify
                       anything greater than 2 std. deviations away from the mean as an outlier
-    :return: Indices of the outliers in the data_mat
+    :return: Tuple containing indices of the outliers and valid data in the data_mat
     """
     rx_vec = rx(data_mat)
 
@@ -45,8 +45,9 @@ def compute_multivariate_gaussian_statistics(data_mat, threshold=None):
         threshold = rx_vec.mean() + 2 * rx_vec.std()
 
     outlier_ixs = np.nonzero(rx_vec > threshold)[0]
+    valid_ixs = np.nonzero(rx_vec <= threshold)[0]
 
-    return outlier_ixs
+    return outlier_ixs, valid_ixs
 
 
 def initial_class_assignment(data_mat, num_classes, method='rand', init_indices=None):
