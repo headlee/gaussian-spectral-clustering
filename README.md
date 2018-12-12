@@ -8,3 +8,6 @@ Implementation of Automated Gaussian spectral clustering of hyperspectral data (
 
 ## Jupyter notebooks - "main" runscripts
 - gaussian-spectral-clustering-[ARCHER/AVIRIS].ipynb: Python notebooks implementing the "main" and demonstrating how to use the codebase/generate results for ARCHER and AVIRIS data
+
+## Dependencies
+The main dependencies are NumPy, SciPy, and SpectralPython. An environment.yml file is included in this repo that shows my Conda development environment packages (use at your own risk - I've had issues with creating Conda environments from YAML before).
